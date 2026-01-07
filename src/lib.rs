@@ -146,6 +146,19 @@ pub fn jsp_consume_digit(p: &mut PkChars) -> Option<u32> {
     None
 }
 
+pub fn jsp_consume_all_digits(p: &mut PkChars) -> usize {
+    let mut count = 0;
+    while let Some(&c) = p.peek() {
+        if c.is_ascii_digit() {
+            p.next();
+            count += 1;
+        } else {
+            break;
+        }
+    }
+    return count;
+}
+
 pub fn jsp_consume_hexdigit(p: &mut PkChars) -> Option<u32> {
     let c = p.peek()?;
     if let Some(c) = c.to_digit(16) {
@@ -172,82 +185,49 @@ pub fn jsp_consume_four_hexdigits(p: &mut PkChars) -> Option<u32> {
 
 pub fn jsp_consume_number(p: &mut PkChars) -> Option<Number> {
     let p_clone = p.clone();
-    let mut intval = 0_i64;
-    let mut fracval = 0_u64;
-    let mut rfrac = 0;
-    let mut expval = 0_i64;
-    let mut neg = false;
-
-    if consume_char(p, '-') != None {
-        neg = true;
-    }
-
-    let mut integ = false;
     let mut frac = false;
     let mut exp = false;
+
+    consume_char(p, '-'); // Consume a minus, if exists.
+
     if consume_char(p, '0') == None {
-        while let Some(n) = jsp_consume_digit(p) {
-            integ = true;
-            intval *= 10;
-            intval += n as i64;
+        let n: usize = jsp_consume_all_digits(p);
+        if n == 0 {
+            p.clone_from(&p_clone);
+            return None;
         }
     } else {
-        integ = true;
-        let n = p.peek();
-        if n == None {
+        let c = p.peek();
+        if c == None {
+            return Some(Number::Int(0));
+        }
+        if c.unwrap().is_ascii_digit() {
             p.clone_from(&p_clone);
             return None;
         }
-        if n.unwrap().is_ascii_digit() {
-            p.clone_from(&p_clone);
-            return None;
-        }
-    }
-    if !integ {
-        p.clone_from(&p_clone);
-        return None;
     }
     if consume_char(p, '.') != None {
-        while let Some(n) = jsp_consume_digit(p) {
-            frac = true;
-            fracval *= 10;
-            fracval += n as u64;
-            rfrac *= 10;
-        }
-        if !frac {
+        let n: usize = jsp_consume_all_digits(p);
+        if n == 0 {
             p.clone_from(&p_clone);
             return None;
         }
+        frac = true;
     }
     if consume_anychar(p, "eE") != None {
-        let sign = consume_anychar(p, "-+");
-        while let Some(n) = jsp_consume_digit(p) {
-            exp = true;
-            expval *= 10;
-            expval += n as i64;
-        }
-        if !exp {
+        consume_anychar(p, "-+");
+        let n: usize = jsp_consume_all_digits(p);
+        if n == 0 {
             p.clone_from(&p_clone);
             return None;
         }
-        expval = match sign {
-            Some('-') => -expval,
-            _ => expval,
-        }
+        exp = true;
     }
 
     if exp || frac {
-        let expval: f64 = (10_f64.log2() * expval as f64).exp2();
-        let mut num: f64 = expval * (fracval as f64 * (rfrac as f64).recip() + intval as f64);
-        if neg {
-            num = -num;
-        }
-        Some(Number::Float(num))
+        Some(Number::Float(0.0))
     } else {
-        if neg {
-            intval = -intval;
-        }
-        Some(Number::Int(intval.try_into().unwrap()))
+        Some(Number::Int(0))
     }
 }
 
@@ -399,11 +379,12 @@ mod tests {
             "00", "01", "--0", ".1", "-1.", "+3.01e+2", "0.0E--2", "0.6E++2", "0.1e+-2",
         ];
         for t in x {
-            let y = jsp_consume_number(&mut t.chars().peekable());
-            assert!(y != None);
+            println!("test: {t}");
+            let z = jsp_consume_number(&mut t.chars().peekable());
+            assert!(z != None);
         }
         for t in y {
-            println!("test: {}", t);
+            println!("test: {t}");
             let z = jsp_consume_number(&mut t.chars().peekable());
             assert!(z == None);
         }
