@@ -63,6 +63,9 @@ pub fn consume_prefix(p: &mut PkChars, t: &mut PkChars) -> String {
 
 fn consume_key_pair(p: &mut PkChars) -> Result<(String, JsonValue), JspError> {
     jsp_consume_whitespace(p);
+    if p.peek().is_none() {
+        return Err(JspError::Eof);
+    }
     if Some(&'}') == p.peek() {
         return Err(JspError::NoPair);
     }
