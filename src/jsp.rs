@@ -4,8 +4,8 @@ use std::vec::Vec;
 
 #[derive(PartialEq, Debug)]
 pub enum JsonValue {
-    Int(i64),
-    Float(f64),
+    Int(String),
+    Float(String),
     Bool(bool),
     Null,
     String(String),
