@@ -526,7 +526,7 @@ mod tests {
         let x = "0.1e-2";
         assert_eq!(
             jsp_consume_number(&mut x.chars().peekable()).unwrap(),
-            Number::Float(f64::from_str(x).unwrap())
+            Number::Float(x.to_string())
         );
     }
 
@@ -542,10 +542,7 @@ mod tests {
         assert_eq!(jsp_parse_json(x).unwrap().to_string(), "22");
         let x = "0.2E+03";
         println!("test input: {}", x);
-        assert_eq!(
-            jsp_parse_json(x).unwrap().to_string(),
-            f64::from_str(x).unwrap().to_string()
-        );
+        assert_eq!(jsp_parse_json(x).unwrap().to_string(), x);
         let x = r#"["Balaji",[],{}]"#;
         let y = vec![
             JsonValue::String("Balaji".to_string()),
@@ -559,7 +556,7 @@ mod tests {
         let x = r#"{"Name" : "Balaji", "Age" : 40}"#;
         let y = HashMap::from([
             ("Name".to_string(), JsonValue::String("Balaji".to_string())),
-            ("Age".to_string(), JsonValue::Int(40)),
+            ("Age".to_string(), JsonValue::Int("40".to_string())),
         ]);
         println!("test input: {}", x);
         let x = jsp_parse_json(x).unwrap();
