@@ -21,29 +21,22 @@ impl fmt::Display for JsonValue {
             JsonValue::Bool(x) => write!(f, "{x}"),
             JsonValue::String(x) => write!(f, "\"{x}\""),
             JsonValue::Null => write!(f, "null"),
-            JsonValue::Array(v) => {
-                write!(f, "[")?;
-                if v.len() > 0 {
-                    write!(f, "{} ", v[0])?;
-                    for i in &v[1..] {
-                        write!(f, ", {}", i)?;
-                    }
-                }
-                write!(f, "]")
-            }
-            JsonValue::Object(h) => {
-                write!(f, "{{")?;
-                let mut i = 0;
-                for (k, v) in h {
-                    if i == 0 {
-                        write!(f, "\"{}\" : {}", k, v)?;
-                        i = 1;
-                        continue;
-                    }
-                    write!(f, ", \"{}\" : {}", k, v)?;
-                }
-                write!(f, "}}")
-            }
+            JsonValue::Array(v) => write!(
+                f,
+                "[{}]",
+                v.iter()
+                    .map(|x| { x.to_string() })
+                    .collect::<Vec<String>>()
+                    .join(", ")
+            ),
+            JsonValue::Object(h) => write!(
+                f,
+                "{{{}}}",
+                h.iter()
+                    .map(|x| { format!("\"{}\": {}", x.0.to_string(), x.1.to_string()) })
+                    .collect::<Vec<String>>()
+                    .join(", ")
+            ),
         }
     }
 }
