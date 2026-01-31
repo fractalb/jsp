@@ -1,14 +1,13 @@
 mod jsp;
 use jsp::JsonValue;
 use std::collections::HashMap;
-use std::str::FromStr;
 use std::vec::Vec;
 type PkChars<'a> = std::iter::Peekable<std::str::Chars<'a>>;
 
 #[derive(Debug, PartialEq)]
 pub enum Number {
-    Int(i64),
-    Float(f64),
+    Int(String),
+    Float(String),
 }
 
 #[derive(Debug, PartialEq)]
@@ -281,7 +280,7 @@ pub fn jsp_consume_number(p: &mut PkChars) -> Result<Number, JspError> {
         nstr.push('0');
         let c = p.peek();
         if c.is_none() {
-            return Ok(Number::Int(0));
+            return Ok(Number::Int(nstr));
         }
         // Leading zero is not accepted.
         if c.unwrap().is_ascii_digit() {
@@ -314,15 +313,10 @@ pub fn jsp_consume_number(p: &mut PkChars) -> Result<Number, JspError> {
     }
 
     if exp || frac {
-        if let Ok(f) = f64::from_str(&nstr) {
-            return Ok(Number::Float(f));
-        }
+        Ok(Number::Float(nstr))
     } else {
-        if let Ok(i) = i64::from_str(&nstr) {
-            return Ok(Number::Int(i));
-        }
+        Ok(Number::Int(nstr))
     }
-    Err(JspError::InvalidNumber)
 }
 
 fn jsp_consume_low_surrogate(p: &mut PkChars) -> Result<u16, JspError> {
