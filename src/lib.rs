@@ -23,6 +23,7 @@ pub enum JspError {
     InvalidNumber,
     InvalidObject,
     InvalidString,
+    InvalidUTF16,
     InvalidValue,
     MissingArrayEnd,
     MissingArrayStart,
@@ -253,17 +254,17 @@ pub fn jsp_consume_hexdigit(p: &mut PkChars) -> Option<u32> {
     None
 }
 
-pub fn jsp_consume_four_hexdigits(p: &mut PkChars) -> Option<u16> {
+pub fn jsp_consume_four_hexdigits(p: &mut PkChars) -> Result<u16, JspError> {
     let mut val = 0_u16;
     for _i in 0..4 {
         if let Some(v) = jsp_consume_hexdigit(p) {
             val *= 16_u16;
             val += v as u16;
         } else {
-            return None;
+            return Err(JspError::InvalidUTF16);
         }
     }
-    Some(val)
+    Ok(val)
 }
 
 pub fn jsp_consume_number(p: &mut PkChars) -> Result<Number, JspError> {
@@ -324,14 +325,14 @@ pub fn jsp_consume_number(p: &mut PkChars) -> Result<Number, JspError> {
     Err(JspError::InvalidNumber)
 }
 
-fn jsp_consume_low_surrogate(p: &mut PkChars) -> Option<u16> {
+fn jsp_consume_low_surrogate(p: &mut PkChars) -> Result<u16, JspError> {
     if consume_char_sequence(p, "\\u") {
         let val = jsp_consume_four_hexdigits(p)?;
         if val >= 0xDC00 && val <= 0xDFFF {
-            return Some(val);
+            return Ok(val);
         }
     }
-    None
+    Err(JspError::InvalidUTF16)
 }
 
 fn read_escaped_char(p: &mut PkChars) -> Result<char, JspError> {
@@ -366,7 +367,7 @@ fn read_escaped_char(p: &mut PkChars) -> Result<char, JspError> {
         }
         'u' => {
             p.next();
-            let val = jsp_consume_four_hexdigits(p).ok_or(JspError::InvalidEscapeSequence)?;
+            let val = jsp_consume_four_hexdigits(p)?;
             match val {
                 0xDC00..=0xDFFF => {
                     // Error: Low surrogate without a high surrogate
@@ -374,13 +375,12 @@ fn read_escaped_char(p: &mut PkChars) -> Result<char, JspError> {
                 }
                 0xD800..=0xDBFF => {
                     // val is high surrogate.
-                    let lval =
-                        jsp_consume_low_surrogate(p).ok_or(JspError::InvalidEscapeSequence)?;
+                    let lval = jsp_consume_low_surrogate(p)?;
                     match char::decode_utf16([val, lval]).next().unwrap() {
                         Ok(c) => return Ok(c),
                         Err(e) => {
                             println!("Error: {e}");
-                            Err(JspError::InvalidString)
+                            Err(JspError::InvalidEscapeSequence)
                         }
                     }
                 }
@@ -388,7 +388,7 @@ fn read_escaped_char(p: &mut PkChars) -> Result<char, JspError> {
             }
         }
         /* Invalid escape sequence */
-        _ => Err(JspError::InvalidString),
+        _ => Err(JspError::InvalidEscapeSequence),
     }
 }
 
