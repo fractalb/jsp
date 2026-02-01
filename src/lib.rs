@@ -1,5 +1,6 @@
 mod jsp;
 use jsp::JsonValue;
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::vec::Vec;
 type PkChars<'a> = std::iter::Peekable<std::str::Chars<'a>>;
@@ -29,7 +30,29 @@ pub enum JspError {
     MissingColon,
     MissingObjectEnd,
     MissingObjectStart,
+    NestedTooDeep,
     NoPair,
+}
+
+static PARSING_DEPTH: u32 = 500;
+
+thread_local! {
+    static DEPTH : Cell<u32> = Cell::new(0);
+}
+
+fn inc_depth() -> Option<u32> {
+    let x = DEPTH.get() + 1;
+    if x < PARSING_DEPTH {
+        DEPTH.set(x);
+        Some(x)
+    } else {
+        None
+    }
+}
+
+fn dec_depth() {
+    let x = DEPTH.get() - 1;
+    DEPTH.set(x);
 }
 
 pub fn consume_char(p: &mut PkChars, c: char) -> bool {
@@ -139,11 +162,19 @@ pub fn jsp_consume_value(p: &mut PkChars) -> Result<JsonValue, JspError> {
                 Ok(JsonValue::String(x))
             }
             '{' => {
+                let Some(_) = inc_depth() else {
+                    return Err(JspError::NestedTooDeep);
+                };
                 let x = jsp_consume_object(p)?;
+                dec_depth();
                 Ok(JsonValue::Object(x))
             }
             '[' => {
+                let Some(_) = inc_depth() else {
+                    return Err(JspError::NestedTooDeep);
+                };
                 let x = jsp_consume_array(p)?;
+                dec_depth();
                 Ok(JsonValue::Array(x))
             }
             'n' => {
