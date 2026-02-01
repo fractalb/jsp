@@ -13,25 +13,19 @@ pub enum Number {
 
 #[derive(Debug, PartialEq)]
 pub enum JspError {
-    Empty,
     Eof,
+    ExpectedArrayEnd,
+    ExpectedColon,
+    ExpectedObjectEnd,
     HasTail,
-    InvalidArray,
     InvalidBool,
     InvalidEscapeSequence,
     InvalidNull,
     InvalidNumber,
-    InvalidObject,
     InvalidString,
     InvalidUTF16,
     InvalidValue,
-    MissingArrayEnd,
-    MissingArrayStart,
-    MissingColon,
-    MissingObjectEnd,
-    MissingObjectStart,
     NestedTooDeep,
-    NoPair,
 }
 
 static PARSING_DEPTH: u32 = 500;
@@ -89,9 +83,6 @@ fn consume_key_pair(p: &mut PkChars) -> Result<(String, JsonValue), JspError> {
     if p.peek().is_none() {
         return Err(JspError::Eof);
     }
-    if Some(&'}') == p.peek() {
-        return Err(JspError::NoPair);
-    }
     let key = jsp_consume_string(p)?;
     jsp_consume_whitespace(p);
     if consume_char(p, ':') {
@@ -99,7 +90,7 @@ fn consume_key_pair(p: &mut PkChars) -> Result<(String, JsonValue), JspError> {
         let val = jsp_consume_value(p)?;
         Ok((key, val))
     } else {
-        Err(JspError::MissingColon)
+        Err(JspError::ExpectedColon)
     }
 }
 
@@ -114,19 +105,12 @@ fn consume_char_sequence(p: &mut PkChars, seq: &str) -> bool {
 
 pub fn jsp_consume_array(p: &mut PkChars) -> Result<Vec<JsonValue>, JspError> {
     let mut jsa = Vec::<JsonValue>::new();
-    if !consume_char(p, '[') {
-        return Err(JspError::MissingArrayStart);
+    consume_char(p, '[');
+    jsp_consume_whitespace(p);
+    if consume_char(p, ']') {
+        return Ok(jsa);
     }
-    let val = jsp_consume_value(p);
-    if val == Err(JspError::Empty) {
-        // See if it's an empty array.
-        if consume_char(p, ']') {
-            return Ok(jsa);
-        } else {
-            return Err(JspError::MissingArrayEnd);
-        }
-    }
-    let v = val?;
+    let v = jsp_consume_value(p)?;
     jsa.push(v);
     loop {
         if !consume_char(p, ',') {
@@ -138,7 +122,7 @@ pub fn jsp_consume_array(p: &mut PkChars) -> Result<Vec<JsonValue>, JspError> {
     if consume_char(p, ']') {
         Ok(jsa)
     } else {
-        Err(JspError::MissingArrayEnd)
+        Err(JspError::ExpectedArrayEnd)
     }
 }
 
@@ -153,7 +137,7 @@ pub fn jsp_parse_json(s: &str) -> Result<JsonValue, JspError> {
 }
 
 pub fn jsp_consume_value(p: &mut PkChars) -> Result<JsonValue, JspError> {
-    let mut jsonval = Err(JspError::Empty);
+    let mut jsonval = Err(JspError::InvalidValue);
     jsp_consume_whitespace(p);
     if let Some(&c) = p.peek() {
         jsonval = match c {
@@ -205,6 +189,8 @@ pub fn jsp_consume_value(p: &mut PkChars) -> Result<JsonValue, JspError> {
             },
             _ => jsonval,
         }
+    } else {
+        return Err(JspError::Eof);
     }
     if jsonval.is_ok() {
         jsp_consume_whitespace(p);
@@ -212,41 +198,29 @@ pub fn jsp_consume_value(p: &mut PkChars) -> Result<JsonValue, JspError> {
     jsonval
 }
 
-pub fn jsp_consume_object(mut p: &mut PkChars) -> Result<HashMap<String, JsonValue>, JspError> {
+pub fn jsp_consume_object(p: &mut PkChars) -> Result<HashMap<String, JsonValue>, JspError> {
     let mut m = HashMap::<String, JsonValue>::new();
-    if !consume_char(p, '{') {
-        return Err(JspError::MissingObjectStart);
+    consume_char(p, '{');
+    jsp_consume_whitespace(p);
+    if consume_char(p, '}') {
+        return Ok(m);
     }
 
-    match consume_key_pair(p) {
-        Ok((key, val)) => {
-            m.insert(key, val);
-            loop {
-                jsp_consume_whitespace(&mut p);
-                if !consume_char(p, ',') {
-                    break;
-                }
-                match consume_key_pair(p) {
-                    Ok((key, val)) => {
-                        m.insert(key, val);
-                    }
-                    Err(x) => return Err(x),
-                }
-            }
+    let (key, val) = consume_key_pair(p)?;
+    m.insert(key, val);
+    loop {
+        jsp_consume_whitespace(p);
+        if !consume_char(p, ',') {
+            break;
         }
-        Err(JspError::NoPair) => {
-            if !consume_char(p, '}') {
-                panic!("Error: Parsing Bug");
-            }
-            return Ok(m);
-        }
-        Err(e) => return Err(e),
-    };
+        let (key, val) = consume_key_pair(p)?;
+        m.insert(key, val);
+    }
 
-    jsp_consume_whitespace(&mut p);
+    jsp_consume_whitespace(p);
 
     if !consume_char(p, '}') {
-        Err(JspError::MissingObjectEnd)
+        Err(JspError::ExpectedObjectEnd)
     } else {
         Ok(m)
     }
