@@ -33,7 +33,7 @@ impl fmt::Display for JsonValue {
                 f,
                 "{{{}}}",
                 h.iter()
-                    .map(|x| { format!("\"{}\": {}", x.0.to_string(), x.1.to_string()) })
+                    .map(|x| { format!("\"{}\": {}", x.0, x.1) })
                     .collect::<Vec<String>>()
                     .join(", ")
             ),

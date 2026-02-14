@@ -31,7 +31,7 @@ pub enum JspError {
 static PARSING_DEPTH: u32 = 500;
 
 thread_local! {
-    static DEPTH : Cell<u32> = Cell::new(0);
+    static DEPTH : Cell<u32> = const { Cell::new(0) };
 }
 
 fn inc_depth() -> Option<u32> {
@@ -50,20 +50,11 @@ fn dec_depth() {
 }
 
 pub fn consume_char(p: &mut PkChars, c: char) -> bool {
-    if p.next_if_eq(&c).is_some() {
-        true
-    } else {
-        false
-    }
+    p.next_if_eq(&c).is_some()
 }
 
 pub fn consume_anychar(p: &mut PkChars, chars: &str) -> Option<char> {
-    for c in chars.chars() {
-        if consume_char(p, c) {
-            return Some(c);
-        }
-    }
-    None
+    chars.chars().find(|&c| consume_char(p, c))
 }
 
 pub fn consume_prefix(p: &mut PkChars, t: &mut PkChars) -> String {
@@ -246,7 +237,7 @@ pub fn jsp_consume_all_digits(p: &mut PkChars, n: &mut String) -> usize {
             break;
         }
     }
-    return count;
+    count
 }
 
 pub fn jsp_consume_hexdigit(p: &mut PkChars) -> Option<u32> {
@@ -327,7 +318,7 @@ pub fn jsp_consume_number(p: &mut PkChars) -> Result<Number, JspError> {
 fn jsp_consume_low_surrogate(p: &mut PkChars) -> Result<u16, JspError> {
     if consume_char_sequence(p, "\\u") {
         let val = jsp_consume_four_hexdigits(p)?;
-        if val >= 0xDC00 && val <= 0xDFFF {
+        if (0xDC00..=0xDFFF).contains(&val) {
             return Ok(val);
         }
     }
@@ -370,13 +361,13 @@ fn read_escaped_char(p: &mut PkChars) -> Result<char, JspError> {
             match val {
                 0xDC00..=0xDFFF => {
                     // Error: Low surrogate without a high surrogate
-                    return Err(JspError::InvalidEscapeSequence);
+                    Err(JspError::InvalidEscapeSequence)
                 }
                 0xD800..=0xDBFF => {
                     // val is high surrogate.
                     let lval = jsp_consume_low_surrogate(p)?;
                     match char::decode_utf16([val, lval]).next().unwrap() {
-                        Ok(c) => return Ok(c),
+                        Ok(c) => Ok(c),
                         Err(e) => {
                             println!("Error: {e}");
                             Err(JspError::InvalidEscapeSequence)
@@ -433,7 +424,7 @@ pub fn jsp_consume_whitespace(p: &mut PkChars) -> usize {
         };
         count += 1;
     }
-    return count;
+    count
 }
 
 #[cfg(test)]
