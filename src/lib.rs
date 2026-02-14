@@ -61,7 +61,7 @@ pub fn consume_prefix(p: &mut PkChars, t: &mut PkChars) -> String {
     let mut prefix = String::new();
     while let Some(&c) = t.peek() {
         if !consume_char(p, c) {
-            return prefix;
+            break;
         }
         prefix.push(c);
         t.next();
@@ -86,12 +86,7 @@ fn consume_key_pair(p: &mut PkChars) -> Result<(String, JsonValue), JspError> {
 }
 
 fn consume_char_sequence(p: &mut PkChars, seq: &str) -> bool {
-    for c in seq.chars() {
-        if !consume_char(p, c) {
-            return false;
-        }
-    }
-    true
+    seq.chars().all(|c| consume_char(p, c))
 }
 
 pub fn jsp_consume_array(p: &mut PkChars) -> Result<Vec<JsonValue>, JspError> {
